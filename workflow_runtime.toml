@@ -1,0 +1,6 @@
+name = "codex"
+platform_version = "omnigent 0.5.1 (built 2026-07-10T23:02:07Z)"
+harness = "codex"
+model = "gpt-5.4-mini"
+effort = "high"
+time_limit_seconds = 1200

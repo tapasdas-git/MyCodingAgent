@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "MyCodeAgent"
+version = "0.1.0"
+description = "CLI tool for MyOmnigent task management"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = []  # Add third-party packages here, e.g. ["requests>=2.28.0"]
+
+[project.scripts]
+# This lets you run 'myomnigent' directly in your terminal
+myomnigent = "mycodeagent.__main__:main"

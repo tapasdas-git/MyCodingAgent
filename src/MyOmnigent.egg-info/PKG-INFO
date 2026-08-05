@@ -1,0 +1,116 @@
+Metadata-Version: 2.4
+Name: MyOmnigent
+Version: 0.1.0
+Summary: CLI tool for MyOmnigent task management
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+# MyOmnigent CLI
+
+`MyOmnigent` is an automated workflow CLI tool designed to parse tasks from `TODO.md`, execute implementation stages, perform code reviews, update changelogs, and manage GitHub pull requests.
+
+---
+
+## 📋 Prerequisites
+
+Before setting up `MyOmnigent` in a fresh environment, ensure the following dependencies and tools are installed and configured:
+
+1. **Python 3.8+**
+   * Check installation:
+     ```bash
+     python3 --version
+     ```
+
+2. **Git**
+   * Installed and configured with your target repository.
+     ```bash
+     git --version
+     ```
+
+3. **GitHub CLI (`gh`)**
+   * Required for automated Pull Request creation during the delivery stage.
+   * Authenticate your active session:
+     ```bash
+     gh auth login
+     gh auth status
+     ```
+
+4. **Omnigent Binary**
+   * Ensure `omnigent` is installed and accessible in your environment's `$PATH`:
+     ```bash
+     omnigent --version
+     ```
+
+---
+
+## 📁 Project Directory Structure
+
+For `MyOmnigent` to locate configuration files and source code correctly, ensure your repository root matches this layout:
+
+```text
+MyOmnigent/                        # Project Root Directory
+├── TODO.md                        # Task queue file containing structured tasks
+├── pyproject.toml                 # Package configuration & entry points
+├── workflow_runtime.toml          # Model, harness, and timeout runtime settings
+├── omnigent_bugfix_workflow.yaml  # Workflow stage definitions for Omnigent
+├── git_approval.toml             # Approved Git identity & remote repository rules
+├── README.md                      # Documentation
+└── src/
+    └── myomnigent/
+        ├── __init__.py            # Package initialization
+        └── __main__.py            # CLI entry point logic
+
+
+
+# MyOmnigent
+
+A custom CLI tool.
+
+🚀 Installation & Setup
+
+# 1. Create and activate a new virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# 2. Navigate to your project root (where pyproject.toml lives)
+cd MyOmnigent
+
+# 3. Install in editable mode (-e) for development
+pip install -e .
+
+#Usage Guide
+
+1. Execute the First ready Task Automatically (submit)
+Scans TODO.md and executes the full automated pipeline (implement → review → changelog → pull-request) for the first task marked with state ready.
+
+# Uses default TODO.md in the root directory
+myomnigent submit
+
+# Or specify a custom TODO file path
+myomnigent submit --todo /path/to/custom_todo.md
+
+. Troubleshoot Individual Workflow Stages
+
+# Execute only the task implementation stage
+myomnigent run TASK-042
+
+# Execute verification checks
+myomnigent verify TASK-042
+
+# Run code review guidelines check against implementation diff
+myomnigent review TASK-042
+
+# Execute Git commit, push, and Pull Request creation
+myomnigent deliver TASK-042
+
+# Execute only the task implementation stage
+myomnigent run TASK-042
+
+# Execute verification checks
+myomnigent verify TASK-042
+
+# Run code review guidelines check against implementation diff
+myomnigent review TASK-042
+
+# Execute Git commit, push, and Pull Request creation
+myomnigent deliver TASK-042

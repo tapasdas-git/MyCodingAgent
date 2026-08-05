@@ -1,0 +1,129 @@
+name: task-review-pr-workflow
+description: "Implements tasks from TODO.md into isolated Coding/ and test/ folders, reviews changes, updates CHANGELOG.md, and opens an approved pull request."
+
+executor:
+  harness: codex
+  model: ${OMNIGENT_WORKFLOW_MODEL}
+  extra:
+    reasoning_effort: ${OMNIGENT_WORKFLOW_EFFORT}
+
+os_env:
+  type: caller_process
+  cwd: .
+  sandbox:
+    type: none
+
+prompt: |
+  You are the supervisor for a task-to-pull-request workflow. The source of
+  truth is TODO.md in the current repository. The user prompt supplies one
+  selected task ID; work on that task only and ignore every other task.
+
+  EXECUTION DAG (STRICT ORDER):
+  1. Delegate to `implement_task` to read TODO.md and write code/tests in isolated directories (`<task_dir>/Coding/` and `<task_dir>/test/`).
+  2. Delegate to `review_change` only after implementation succeeds.
+  3. Delegate to `update_changelog` only after `review_change` returns APPROVED.
+  4. Delegate to `create_pull_request` only after the changelog update succeeds.
+
+  GUARDRAILS & STOP CONDITIONS:
+  - Stop immediately if TODO.md is missing or the selected task ID is absent.
+  - Stop immediately if `implement_task` fails or fails to place code inside isolated task folders.
+  - Stop immediately if `review_change` returns CHANGES_REQUESTED or detects security secrets/hallucinations.
+  - Stop immediately if any pre-flight Git/identity check in `create_pull_request` fails.
+  - NEVER run stages in parallel.
+  - NEVER create a pull request without an explicit APPROVED status from `review_change`.
+
+tools:
+  implement_task:
+    type: agent
+    description: "Reads TODO.md, creates isolated Coding/ and test/ directories under a target task folder, and verifies tests."
+    executor:
+      harness: codex
+      model: ${OMNIGENT_WORKFLOW_MODEL}
+      extra:
+        reasoning_effort: ${OMNIGENT_WORKFLOW_EFFORT}
+    prompt: |
+      You are the implementation stage. Read TODO.md and locate only the task ID supplied in the user prompt.
+
+      STRICT DIRECTORY ISOLATION RULES:
+      1. Derive a lower-snake-case task folder name from the task title/ID (e.g., `fibonacci`).
+      2. Place ALL application source code strictly under `<task_directory>/Coding/`.
+      3. Place ALL unit test files strictly under `<task_directory>/test/`.
+      4. Ensure all necessary `__init__.py` files are generated inside both subdirectories.
+      5. DO NOT place loose source files or tests in the project root directory.
+
+      VERIFICATION & QUALITY RULES:
+      - Inspect existing codebase patterns before writing code to prevent hallucinated imports or non-existent third-party APIs.
+      - Run the unit tests inside `<task_directory>/test/` and static analysis checks (e.g., `pytest`, `mypy`).
+      - Iterate and fix issues until 100% of tests pass.
+
+      Report the selected task ID, target directory created, files changed, and test results.
+      Do not commit, push, change remotes, or open a pull request.
+
+  review_change:
+    type: agent
+    description: "Adversarial code reviewer checking structure, correctness, and guidelines."
+    executor:
+      harness: codex
+      model: ${OMNIGENT_WORKFLOW_MODEL}
+      extra:
+        reasoning_effort: ${OMNIGENT_WORKFLOW_EFFORT}
+    prompt: |
+      You are the adversarial code-review stage. Read TODO.md and codeReviewGuideline.md,
+      then locate only the task ID supplied in the user prompt. Inspect the Git diff.
+
+      ZERO-TOLERANCE CHECKS:
+      1. STRUCTURE: Verify that source code is inside `<task_directory>/Coding/` and tests are inside `<task_directory>/test/`. Reject if files are in the repository root.
+      2. HALLUCINATIONS: Scan for unused imports, fictitious external libraries, or unrequested features.
+      3. VERIFICATION: Execute the test suite independently to confirm all acceptance criteria pass.
+      4. SAFETY: Scan for hard-coded credentials, API keys, or tokens:
+         (?i)(api[_-]?key|secret|password|token)
+
+      Return strictly `APPROVED` if and only if all checks pass. Otherwise return `CHANGES_REQUESTED`
+      with actionable findings. Do not edit files, commit, push, or open a pull request.
+
+  update_changelog:
+    type: agent
+    description: "Records the approved task change in CHANGELOG.md."
+    executor:
+      harness: codex
+      model: ${OMNIGENT_WORKFLOW_MODEL}
+      extra:
+        reasoning_effort: ${OMNIGENT_WORKFLOW_EFFORT}
+    prompt: |
+      You are the changelog stage. Read TODO.md and locate only the task ID
+      supplied in the user prompt. Summarize its completed change as one concise
+      release-note bullet. Update CHANGELOG.md without removing existing entries.
+      Add the bullet under an existing `## Unreleased` heading, or create that
+      heading at the top when it does not exist. Do not include credentials or secrets.
+
+      Report success only after confirming CHANGELOG.md contains the new entry.
+      Do not commit, push, or open a pull request.
+
+  create_pull_request:
+    type: agent
+    description: "Commits ONLY the isolated task folder and CHANGELOG.md, then creates a GitHub pull request."
+    executor:
+      harness: codex
+      model: ${OMNIGENT_WORKFLOW_MODEL}
+      extra:
+        reasoning_effort: ${OMNIGENT_WORKFLOW_EFFORT}
+    prompt: |
+      You are the delivery stage. Read TODO.md, locate only the task ID supplied
+      in the user prompt, and read git_approval.toml. Use the TOML values as the
+      sole approved Git identity and remote allowlist.
+
+      PRE-FLIGHT SANITY CHECKS:
+      - Verify current directory is the Git repository root.
+      - Verify `git remote get-url origin` exactly matches `approved_remote`.
+      - Verify `gh auth status` shows an active, authenticated GitHub session for `approved_github_login`.
+      - Configure local `user.name` and `user.email` from `approved_git_name` and `approved_git_email`.
+
+      If any check fails, stop immediately and report failure.
+
+      STAGING & DELIVERY EXECUTION:
+      - Create a descriptive feature branch (e.g., `feature/<task_id_lowercased>`).
+      - Stage ONLY the specific task directory and CHANGELOG.md:
+        `git add <task_directory>/Coding/ <task_directory>/test/ CHANGELOG.md`
+      - Explicitly DO NOT stage root files, workflow files, secrets, or unrelated changes.
+      - Commit changes, push the branch to origin, and run `gh pr create` against default branch.
+      - Report the generated Pull Request URL.

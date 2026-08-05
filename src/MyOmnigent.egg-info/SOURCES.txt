@@ -1,0 +1,9 @@
+README.md
+pyproject.toml
+src/MyOmnigent.egg-info/PKG-INFO
+src/MyOmnigent.egg-info/SOURCES.txt
+src/MyOmnigent.egg-info/dependency_links.txt
+src/MyOmnigent.egg-info/entry_points.txt
+src/MyOmnigent.egg-info/top_level.txt
+src/myomnigent/__init__.py
+src/myomnigent/__main__.py

@@ -1,0 +1,106 @@
+name: task-review-pr-workflow
+description: "Token-optimized task workflow using AI agents for code generation/review and deterministic scripts for delivery."
+
+executor:
+  harness: codex
+  model: ${OMNIGENT_WORKFLOW_MODEL}
+  extra:
+    reasoning_effort: ${OMNIGENT_WORKFLOW_EFFORT}
+
+os_env:
+  type: caller_process
+  cwd: .
+  sandbox:
+    type: none
+
+prompt: |
+  You are the workflow supervisor. If the user prompt begins with `STAGE ONLY: <tool_name>`, invoke only that named tool and stop after it returns. Do not invoke any other tool or carry out any other workflow stage.
+
+  Otherwise, execute these stages strictly in order:
+  1. `implement_task`: Read TODO.md, generate code/tests inside isolated task directory.
+  2. `review_change`: Adversarial code review. Stop immediately if review does NOT return APPROVED.
+  3. `update_changelog`: Update CHANGELOG.md using script execution (0 token cost).
+  4. `create_pull_request`: Stage isolated files and open PR using script execution (0 token cost).
+
+  Stop immediately if any stage fails or if review returns CHANGES_REQUESTED.
+
+tools:
+  implement_task:
+    type: agent
+    description: "Implements feature code under <task_directory>/Coding/ and tests under <task_directory>/test/."
+    executor:
+      harness: codex
+      model: ${OMNIGENT_WORKFLOW_MODEL}
+      extra:
+        reasoning_effort: ${OMNIGENT_WORKFLOW_EFFORT}
+    prompt: |
+      You are the implementation stage. Locate the active task ID in TODO.md and
+      read its complete section, README.md, and any repository files explicitly
+      referenced by the task before designing or changing code.
+
+      STRICT ISOLATION RULES:
+      - Use the exact task workspace path when TODO.md specifies one; otherwise create a lower-snake-case task folder name (e.g., `fibonacci` or `palindrome`).
+      - Place ALL application code inside `<task_directory>/Coding/`.
+      - Place ALL test files inside `<task_directory>/test/`.
+      - Do not change root-level code, workflow files, or another task's workspace unless the selected task explicitly requires it.
+
+      IMPLEMENTATION CONTRACT:
+      - Treat every Architecture, Tech Stack, Security, Workspace Boundary, and Acceptance item in the task as a requirement. Create an acceptance-to-test checklist before implementation.
+      - Inspect existing project patterns and installed/configured dependencies. Do not invent imports, providers, or APIs. When a task explicitly names an external provider, add its supported client dependency or state that the requirement cannot be completed.
+      - Put external services behind injectable interfaces/adapters. Tests must use deterministic fakes or mocks and must not require network access or live credentials.
+      - When a task requests an LLM or ReAct agent, implement the actual provider adapter, structured/validated tool actions and observations, a bounded action-observation loop, and explicit error/termination behavior. Reading an API-key environment variable alone does not satisfy an LLM-provider requirement.
+      - Keep authorization, validation, inventory, price, and other business-critical decisions deterministic; never trust unvalidated model output for a side effect.
+      - Run test suite locally and ensure 100% pass rate.
+      - Output the exact task directory name (`$TASK_DIR`), ID (`$TASK_ID`), files changed, acceptance-to-test evidence, and test command/result.
+
+  review_change:
+    type: agent
+    description: "Adversarial reviewer checking directory structure, tests, safety, and guidelines."
+    executor:
+      harness: codex
+      model: ${OMNIGENT_WORKFLOW_MODEL}
+      extra:
+        reasoning_effort: ${OMNIGENT_WORKFLOW_EFFORT}
+    prompt: |
+      You are the code reviewer stage. 
+      
+      STEP 1: Read `codeReviewGuideline.md` and `TODO.md` in the current repository root.
+      STEP 2: Inspect the `git diff` for the changes made by `implement_task`.
+      
+      EVALUATION:
+      - Trace every selected-task acceptance criterion to code and at least one test. Reject an implementation that only has placeholder wiring for a required provider, agent, or integration.
+      - Check that all source code is strictly under `<task_directory>/Coding/` and tests are under `<task_directory>/test/`.
+      - Execute unit tests inside `<task_directory>/test/` and confirm 100% pass rate.
+      - Scan diff for hardcoded credentials: (?i)(api[_-]?key|secret|password|token)
+      - For LLM/ReAct tasks, verify dynamic secret loading, an injectable offline LLM fake, schema-validated tool calls/results, a bounded action/observation loop, and deterministic validation before any side effect.
+      - Ensure the code complies with all architectural rules in `codeReviewGuideline.md`.
+
+      Return strictly `APPROVED` if every check passes. Otherwise, return `CHANGES_REQUESTED` with actionable findings.
+
+  update_changelog:
+    type: agent
+    description: "Updates CHANGELOG.md deterministically via Python script."
+    executor:
+      harness: codex
+    os_env:
+      type: caller_process
+    prompt: |
+      You are the changelog update stage. Execute this exact shell command:
+
+      python3 scripts/workflow_helpers.py changelog --task-id "$TASK_ID"
+
+      Confirm execution succeeded, then report success.
+
+  create_pull_request:
+    type: agent
+    description: "Stages isolated task folder, commits, and creates GitHub PR via Python script."
+    executor:
+      harness: codex
+    os_env:
+      type: caller_process
+    prompt: |
+      You are the PR delivery stage. Execute this exact shell command:
+
+      python3 scripts/workflow_helpers.py pr --task-id "$TASK_ID" --task-dir "$TASK_DIR"
+
+      Report success and print the generated Pull Request URL.
