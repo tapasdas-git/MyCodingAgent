@@ -1,201 +1,139 @@
-MyCodeAgent 
+# MyCodeAgent
 
-MyCodeAgent is an autonomous, agentic task-execution engine and CLI tool designed to automate software feature development, adversarial code reviews, changelog updates, and GitHub Pull Request delivery.
+MyCodeAgent is a hierarchical software-development agent. Omnigent is the
+meta-harness, a Supervisor LLM performs one bounded ReAct decision at a time,
+and specialized Explorer, Implementer, Test Writer, and Reviewer LLM agents do
+the delegated work. Deterministic Python code owns state transitions, workspace
+isolation, tests, fingerprints, the five-cycle limit, logging, and PR gates.
 
-By combining high-reasoning AI models (for code creation and automated security/guideline reviews) with deterministic Python scripting (for Git lifecycle management and changelog generation), MyCodeAgent delivers a controlled task-resolution workflow with minimal token usage and high reliability.
-
-***
-💡 Key Features & Architecture
-
-```text
-                               ┌────────────────────────────────────────┐
-                               │ 1. TASK PICKUP                         │
-                               │    Parses 'ready' tasks from TODO.md   │
-                               └──────────────────┬─────────────────────┘
-                                                  │
-                                                  v
-                               ┌────────────────────────────────────────┐
-                               │ 2. IMPLEMENT TASK (AI Agent)           │
-                               │    Isolated workspace creation         │
-                               │    Generates code, dependencies & tests│
-                               └──────────────────┬─────────────────────┘
-                                                  │
-                                                  v
-                               ┌────────────────────────────────────────┐
-                               │ 3. ADVERSARIAL CODE REVIEW (AI Agent)   │
-                               │    Inspects diffs vs. guidelines       │
-                               │    Verifies 100% test suite pass rate  │
-                               │    Scans for security & key leaks      │
-                               └─────────┬────────────────────┬─────────┘
-                                         │                    │
-                                [CHANGES_REQUESTED]        [APPROVED]
-                                         │                    │
-                                         v                    v
-                                  ┌─────────────┐   ┌───────────────────┐
-                                  │ HALT PROCESS│   │ 4. UPDATE CHANGELOG│
-                                  └─────────────┘   │    Deterministic  │
-                                                    │    Python Script  │
-                                                    └─────────┬─────────┘
-                                                              │
-                                                              v
-                                                    ┌───────────────────┐
-                                                    │ 5. CREATE PULL REQ│
-                                                    │    Pushes branch  │
-                                                    │    Opens GitHub PR│
-                                                    └───────────────────┘
-
-Automated Task Ingestion: Scans TODO.md for structured tasks marked as ready.
-
-Isolated Task Workspaces: Generates feature implementations and unit tests within scoped task directories to avoid cross-task pollution.
-
-Adversarial Code Review: Evaluates pull requests against customized guidelines (codeReviewGuideline.md), test suite execution results, and security scans before approving.
-
-Deterministic Delivery Pipeline: Executes branch creation, changelog tracking, and GitHub PR creation using deterministic Python helpers (saving tokens and eliminating non-deterministic Git errors).
-
-🛠️ Technology Stack & Dependencies
-Language & Runtime: Python 3.8+ (Recommended Python 3.11+)
-
-Agent Framework & Runner: Omnigent Core Engine (omnigent)
-
-Version Control & Integration: Git, GitHub CLI (gh)
-
-Testing Frameworks: pytest, Python unittest
-
-Configuration Formats: YAML (.yaml), TOML (.toml), Markdown (.md)
-
-***
-📋 Prerequisites
-
-🔧 Installing the Omnigent Core Engine
-
-pip install omnigent
-
-omnigent setup
-
-
-Before setting up MyCodeAgent in a fresh environment, ensure the following dependencies and tools are installed and configured:
-
-Python 3.8+
-Check installation:
-python3 --version
-
-Git
-Installed and configured with your target repository:
-git --version
-
-GitHub CLI (gh)
-Required for automated Pull Request creation during the delivery stage.
-Authenticate your active session:
-gh auth login
-gh auth status
-
-Omnigent Binary / Core Runner
-Ensure omnigent is installed and accessible in your environment's $PATH:
-omnigent --version
-
-***
-📁 Project Directory Structure
-
-For MyCodeAgent to locate configuration files and source code correctly, ensure your repository root matches this layout. The CLI loads `coding_agent.yaml` as its active Codex/Omnigent workflow definition; `omnigent_bugfix_workflow.yaml` is not used by the current CLI.
+## Execution flow
 
 ```text
-MyCodeAgent/                        # Project Root Directory
-├── TODO.md                        # Task queue file containing structured tasks
-├── CHANGELOG.md                   # Automated release changelog
-├── codeReviewGuideline.md         # Enterprise review & security standards
-├── pyproject.toml                 # Package configuration & entry points
-├── workflow_runtime.toml          # Model, harness, and timeout runtime settings
-├── coding_agent.yaml              # Active Codex/Omnigent workflow stages
-├── git_approval.toml             # Approved Git identity & remote repository rules
-├── README.md                      # Documentation
-├── scripts/
-│   └── workflow_helpers.py        # Deterministic Python scripts (Changelog & PR)
-└── src/
-    └── mycodeagent/
-        ├── __init__.py        # Package initialization
-        └── __main__.py        # CLI entry point logic
+TODO.md -> normalize TaskSpec -> create Git worktree
+                  |
+                  v
+       Supervisor Observe / Reason / Select
+                  |
+       +----------+-----------+----------+
+       v          v           v          v
+    Explorer  Implementer  Test Writer  Reviewer
+                  ^                      |
+                  |  ReviewContext       |
+                  +-- CHANGES_REQUESTED--+
+                  |
+       validate -> pytest -> fingerprint -> re-review
+                  |
+          APPROVED exact fingerprint
+                  v
+          commit -> push -> create PR
+```
 
+Cycle 1 is the initial implementation, test, and review. Review or test failures
+are persisted in centralized execution memory and routed back to the
+Implementer. Cycles 2–5 repeat remediation, deterministic validation/testing,
+and final review. No sixth automatic cycle is allowed.
 
-🚀 Quickstart & Installation
-Clone the Repository
+`TODO.md` exposes business-facing lifecycle labels: `RECEIVED`, `IMPLEMENTING`,
+`TESTING`, `REVIEWING`, `APPROVED`, `CREATING_PR`, and
+`PR creation complete`. Local-only runs remain `APPROVED`; `CREATING_PR` is
+written only after explicit `--deliver` authorization.
 
-git clone https://github.com/tapasdas-git/MyCodeAgent.git
+The Supervisor returns only an action and rationale. MyCodeAgent maps that
+action to a specialized role deterministically; provider session identities
+such as Omnigent's `main` role are never interpreted as agent roles.
 
-cd MyCodeAgent
+Loop ownership is hierarchical. The Supervisor owns the bounded strategic
+Observe–Reason–Select loop and all workflow transitions. Each specialized agent
+may use only a bounded tactical inspect/edit/check loop within one delegated
+action; it cannot invoke another agent, select a workflow stage, approve its own
+work, or deliver changes. Deterministic Python owns timeouts, one transient
+transport retry, validation, tests, fingerprints, cycle limits, and delivery.
 
-Create and Activate Virtual Environment
+## Provider configuration
 
+Agent providers are selected in `workflow_runtime.toml`; implementation code is
+provider-neutral. Codex is the current default. Omnigent/LiteLLM can route a
+role to Claude or Gemini by changing only that role's harness/model settings:
+
+```toml
+[agents.implementer]
+harness = "anthropic"
+model = "claude-model-name"
+write_scope = "coding_and_authorized_tests"
+```
+
+## Layout
+
+```text
+agents/                     Omnigent role definitions
+src/mycodeagent/cli.py      CLI routing
+src/mycodeagent/task_parser.py  TODO.md -> TaskSpec
+src/mycodeagent/orchestrator.py Supervisor ReAct feedback loop
+src/mycodeagent/state_store.py  Atomic memory and state machine
+src/mycodeagent/agent_executor.py Omnigent role invocation
+src/mycodeagent/workspace.py     Git worktree isolation
+src/mycodeagent/validator.py     Scope, artifact, secret, fingerprint gates
+src/mycodeagent/test_runner.py   Deterministic pytest execution
+src/mycodeagent/delivery.py      Exact-approval commit/push/PR gate
+src/mycodeagent/observability.py JSONL events, traces, and redaction
+```
+
+## Install and use
+
+Requires Python 3.11+, Git, Omnigent, pytest, and the GitHub CLI for delivery.
+When multiple Omnigent versions are installed, set
+`MYCODEAGENT_OMNIGENT_EXECUTABLE` to the binary compatible with the configured
+Omnigent database.
+
+```bash
 python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install MyCodeAgent in Editable Mode
-
+source venv/bin/activate
 pip install -e .
 
-📖 Usage Guide
-
-### Execute the automated workflow
-
-To pick up the first task marked ready in TODO.md and execute the full pipeline (Implement $\rightarrow$ Review $\rightarrow$ Changelog $\rightarrow$ GitHub PR):
-
-Process task from default TODO.md
+mycodeagent show-task TASK-107
 mycodeagent submit
+mycodeagent run TASK-107
+mycodeagent status TASK-107
+mycodeagent verify TASK-107 --worktree /path/to/task/worktree
+```
 
-Process task from a custom TODO file path
-mycodeagent submit --todo /path/to/custom_todo.md
+`submit` selects the first `ready` TODO task. `run` selects a specific task.
+Both create an isolated worktree by default. Add `--deliver` to explicitly
+authorize commit, push, and PR creation after final approval. Without it, an
+approved run finishes locally and makes no remote changes.
 
-Granular Stage Execution & Troubleshooting
-If a task requires step-by-step debugging, individual workflow stages can be executed independently:
+Task worktrees are kept outside the primary checkout under
+`../CodedWorkspace/<repository>/<task-id>/`. Repository namespacing
+prevents identical task IDs in sibling repositories from colliding.
+After commit, push, and pull-request creation succeed, the registered task
+worktree is removed automatically. Local-only `completed` worktrees are kept
+because their uncommitted implementation would otherwise be lost. Cleanup is
+also skipped when unexpected residual files are detected.
 
-Stage 1: Run code implementation for a specific task ID
-mycodeagent run TASK-100
+## Task contract
 
-Stage 2: Run verification checks & test suites
-mycodeagent verify TASK-100
+Each TODO task must define acceptance criteria and a workspace boundary. Source
+belongs under `workspace/<task>/Coding/`; tests belong under
+`workspace/<task>/test/`. Required files are derived from the task, and changes
+outside those paths fail deterministic validation.
 
-Stage 3: Run adversarial code review against guidelines
-mycodeagent review TASK-100
+Run the control-plane test suite with:
 
-Stage 4: Commit changes, push branch, and create GitHub PR
-mycodeagent deliver TASK-100
+```bash
+python -m pytest -q -p no:cacheprovider
+```
 
-Direct Script Execution (Human-in-the-Loop Fallback)
+## Logs and traces
 
-To execute changelog updates or GitHub PR generation directly via the deterministic helper scripts:
+Every workflow event is written to both a run-specific JSONL trace and an
+append-only task trace:
 
-Append task entry to CHANGELOG.md
-python3 scripts/workflow_helpers.py changelog --task-id "TASK-100"
+```text
+.mycodeagent/runs/<run-id>/events.jsonl
+logs/<task-id>.logs
+```
 
-Create feature branch, commit, push, and open Pull Request on GitHub
-python3 scripts/workflow_helpers.py pr --task-id "TASK-100" --task-dir "flight_booking"
-
-📝 Defining Tasks in TODO.md
-
-### Coding-agent implementation contract
-
-`mycodeagent` invokes Codex through `coding_agent.yaml`. The task description is the source of truth; the coding agent must translate its architecture and acceptance criteria into implementation, tests, and a reviewable result. For every task, the implementation stage must:
-
-- inspect the referenced repository files before choosing dependencies or APIs;
-- keep changes inside the task's stated workspace boundary;
-- map every acceptance criterion to at least one test;
-- inject external integrations behind interfaces and use fakes/mocks in tests; and
-- report the task ID, changed files, acceptance-test evidence, and any unsupported requirement rather than silently substituting an unrelated design.
-
-For an AI-agent task, naming an LLM provider is an implementation requirement. For example, a Groq ReAct feature must include a dynamically configured Groq adapter, validated tool inputs and outputs, and an explicit thought/action/observation loop with a bounded iteration count. A key lookup alone is not an LLM integration. Business-critical checks—such as price, inventory, policy, and booking confirmation—must remain deterministic code and must not rely on model output.
-
-The Omnigent workflow is the outer development pipeline (implement, review, changelog, delivery). It is distinct from any multi-agent runtime that the task asks the coding agent to build.
-
-TASK-100 | ready | high | Build Flight Booking Agent in flight_booking
-
-  Description:
-  Implement a flight search and booking module that processes natural language requests.
-
-  Architecture & Boundaries:
-Framework: Python 3.11+, Pydantic v2
-Isolated Boundary: Source code lives in flight_booking/Coding/, tests in flight_booking/test/
-Mocks: Mock external airline APIs for unit tests.
-
-  Acceptance:
-Isolated directory flight_booking/ created.
-Dependencies defined in flight_booking/Coding/requirements.txt.
-All unit tests pass with 100% pass rate.
+Records use the `mycodeagent.event.v1` schema and include UTC timestamp,
+run/task/trace correlation IDs, event type, stage, status, cycle, and recursively
+redacted details. Trace files and stored artifacts use owner-only `0600`
+permissions. Follow a task across runs with `tail -f logs/TASK-108.logs`.

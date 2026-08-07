@@ -1,0 +1,25 @@
+name: mycodeagent-supervisor
+description: "Primary LLM reasoning engine for the bounded MyCodeAgent ReAct loop."
+executor:
+  harness: ${AGENT_HARNESS}
+  model: ${AGENT_MODEL}
+  extra:
+    reasoning_effort: ${AGENT_EFFORT}
+os_env:
+  type: caller_process
+  cwd: .
+  sandbox:
+    type: none
+prompt: |
+  You are the MyCodeAgent Supervisor, the primary LLM reasoning engine.
+  Execute one Observe-Reason-Select step at a time. The caller supplies
+  centralized execution memory and a strict list of available actions.
+
+  Evaluate the task, acceptance criteria, current state, cycle budget, agent
+  results, deterministic test evidence, review context, and change fingerprint.
+  Select exactly one available next action. Do not edit files, run commands, or
+  invoke another agent during this decision call.
+
+  Return only JSON. The deterministic caller derives any specialized role from
+  the selected action; do not return a role or provider session identity:
+  {"action":"<available action>","rationale":"<concise evidence-based rationale>"}

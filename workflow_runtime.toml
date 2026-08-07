@@ -1,6 +1,24 @@
-name = "codex"
-platform_version = "omnigent 0.5.1 (built 2026-07-10T23:02:07Z)"
+name = "mycodeagent"
+platform_version = "omnigent 0.5.1"
+
+[workflow]
+max_cycles = 5
+
+[defaults]
 harness = "codex"
 model = "gpt-5.4-mini"
 effort = "high"
-time_limit_seconds = 1200
+time_limit_seconds = 600
+
+[agents.explorer]
+read_only = true
+effort = "medium"
+
+[agents.implementer]
+write_scope = "coding_and_authorized_tests"
+
+[agents.test_writer]
+write_scope = "tests"
+
+[agents.reviewer]
+read_only = true

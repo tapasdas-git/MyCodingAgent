@@ -12,7 +12,7 @@
 - Approved by: Alex Mercer
 - Approval reference: 2026-07-20 Slack sign-off
 
-## TASK-041 | working | P1 | Add request latency metrics to dashboard
+## TASK-041 | completed | P1 | Add request latency metrics to dashboard
 - Outcome: Expose Prometheus metrics for P95 and P99 HTTP request response times.
 - Depends on: TASK-040
 - Repository: /path/to/repo
@@ -23,7 +23,7 @@
 - Approved by: Dev Lead
 - Approval reference: 2026-07-21 Jira SWAF-041
 
-## TASK-042 | completed | P1 | Implement palindrome utility function
+## TASK-042 | completed | Feature | Implement palindrome utility function
 - Outcome: Pure Python function that checks if input string is a valid palindrome, ignoring case and special characters.
 - Depends on: None
 - Repository: /path/to/repo
@@ -55,7 +55,7 @@
 ## SWAF-045 | Completed | P1 | Implement Fibonacci series utility module
 - Outcome: Pure Python module created under `fibonacci/` directory containing sequence generation logic and CLI interface.
 - Depends on: None
-- Repository: https://github.com/tapasdas-git/MyOmnigent.git
+- Repository: https://github.com/tapasdas-git/MyCodingAgent.git
 - Harness: primary-name
 - Night-ready: yes
 - Acceptance:
@@ -67,26 +67,40 @@
 - Approved by: Tech Lead
 - Approval reference: 2026-07-30 Arch Sync
 
-## SWAF-046 | completed | P1 | Implement palindrome detection utility module
-- Outcome: Pure Python module and unit tests for palindrome detection, handling edge cases, case-insensitivity, and special characters.
+## TASK-107 | completed | P2 | [FEATURE] Implement Palindrome Detection Utility Module in `workspace/palindrome_util/`
+- Outcome: Implement a lightweight, high-performance palindrome detection utility module supporting multi-language string normalization, numerical/phrase checking, and Pydantic schema validation for metadata reporting.
 - Depends on: None
-- Repository: https://github.com/tapasdas-git/MyOmnigent.git
+- Repository: https://github.com/tapasdas-git/MyCodingAgent.git
 - Harness: primary-name
 - Night-ready: yes
+- Architecture & Tech Stack:
+  - Framework: Python 3.11+, Pydantic (v2)
+  - Pattern: Utility Module Pattern
+    1. PalindromeChecker: Core engine supporting strict checking, case-insensitive/ignore-punctuation checking, and numeric range filtering.
+    2. Schemas: Pydantic models for input validation (`PalindromeRequest`) and output analysis (`PalindromeResponse` with metadata like cleaned string, length, and boolean result).
+- API Key & Secrets Management:
+  - Security Requirement: No network calls or API keys required for this local utility module.
+- Workspace Boundary:
+  - Source: `workspace/palindrome_util/Coding/`
+  - Tests: `workspace/palindrome_util/test/`
+  - Requirements: `workspace/palindrome_util/Coding/requirements.txt`
+  - Rule: All generated files must stay strictly inside `workspace/palindrome_util/`. Do not edit files outside this directory.
 - Acceptance:
-  - Source file created at `palindrome/Coding/checker.py`.
-  - Test file created at `palindrome/test/test_checker.py`.
-  - Function `is_palindrome(text: str) -> bool` ignores spaces, punctuation, and casing.
-  - Returns `True` for "A man, a plan, a canal: Panama".
-  - Returns `False` for "Hello World".
-  - Unit test suite passes with 100% test coverage.
+  - Isolated workspace directory created at `workspace/palindrome_util/`.
+  - Source files created under `workspace/palindrome_util/Coding/`:
+    - `requirements.txt`: Local dependencies (`pydantic>=2.0.0`, `pytest`).
+    - `schemas.py`: Pydantic models for `PalindromeRequest` and `PalindromeResponse`.
+    - `checker.py`: Core implementation of `PalindromeChecker` class with normalization logic.
+  - Test files created under `workspace/palindrome_util/test/`:
+    - `test_checker.py`: Verifies phrase palindromes (e.g., "A man, a plan, a canal: Panama"), single-character/empty string edge cases, non-palindromes, and numeric inputs.
+  - Test suite passes with 100% pass rate locally.
 - Approved by: Tech Lead
-- Approval reference: 2026-07-30 Arch Sync
+- Approval reference: 2026-08-06 Arch Sync
 
 ## TASK-046 | completed | P1 | Implement palindrome detection utility module
 - Outcome: Pure Python module and unit tests for palindrome detection, handling edge cases, case-insensitivity, and special characters.
 - Depends on: None
-- Repository: https://github.com/tapasdas-git/MyOmnigent.git
+- Repository: https://github.com/tapasdas-git/MyCodingAgent.git
 - Harness: primary-name
 - Night-ready: yes
 - Acceptance:
@@ -102,7 +116,7 @@
 ## TASK-047 | completed | P3 | Create a utility module in `prime_checker` to verify prime numbers and return prime factors.
 - Outcome: Pure Python module and unit tests for palindrome detection, handling edge cases, case-insensitivity, and special characters.
 - Depends on: None
-- Repository: https://github.com/tapasdas-git/MyOmnigent.git
+- Repository: https://github.com/tapasdas-git/MyCodingAgent.git
 - Harness: primary-name
 - Night-ready: yes
 Acceptance:
@@ -114,7 +128,7 @@ Acceptance:
 - Approved by: Tech Lead
 - Approval reference: 2026-07-30 Arch Sync
 
-## TASK-101 | ready | P1 | [FEATURE] Build Agentic Flight Booking Engine in `workspace/flight_booking_agent/`
+## TASK-101 | completed | P1 | [FEATURE] Build Agentic Flight Booking Engine in `workspace/flight_booking_agent/`
 - Outcome: Implement a multi-agent flight search and booking engine using Python and Pydantic as a new core feature. Process natural language requests, query flight options, evaluate preferences, and handle booking state validation.
 - Depends on: None
 - Repository: https://github.com/tapasdas-git/MyCodeAgent.git
@@ -154,3 +168,135 @@ Acceptance:
   - Test suite passes with 100% pass rate locally.
 - Approved by: Tech Lead
 - Approval reference: 2026-08-01 Arch Sync
+## TASK-109 | APPROVED | P2 | [FEATURE] Implement Event-Driven Audit Logger Module in `workspace/audit_log/`
+- Outcome: Implement a thread-safe audit logging framework using the Observer Pattern to capture system events, calculate SHA-256 integrity checksums, and serialize structured audit records with Pydantic validation.
+- Depends on: None
+- Repository: https://github.com/tapasdas-git/MyCodingAgent.git
+- Harness: primary-name
+- Night-ready: yes
+- Architecture & Tech Stack:
+  - Framework: Python 3.11+, Pydantic (v2)
+  - Pattern: Observer / Event-Dispatcher Pattern
+    1. EventPublisher: Central channel where application components publish audit events (e.g., USER_LOGIN, FILE_ACCESS, CONFIG_CHANGE).
+    2. FileAuditObserver & MemoryAuditObserver: Observers that validate payloads, generate cryptographic checksums, and log event metrics.
+    3. Schemas: Pydantic models for `AuditEvent` (input event) and `AuditLogRecord` (validated log entry with hash signature and timestamp).
+- API Key & Secrets Management:
+  - Security Requirement: No network calls or hardcoded secrets required. Use mock parameters for offline execution.
+- Workspace Boundary:
+  - Source: `workspace/audit_log/Coding/`
+  - Tests: `workspace/audit_log/test/`
+  - Requirements: `workspace/audit_log/Coding/requirements.txt`
+  - Rule: All generated files must stay strictly inside `workspace/audit_log/`. Do not edit files outside this directory.
+- Acceptance:
+  - Isolated workspace directory created at `workspace/audit_log/`.
+  - Source files created under `workspace/audit_log/Coding/`:
+    - `requirements.txt`: Local dependencies (`pydantic>=2.0.0`, `pytest`).
+    - `schemas.py`: Pydantic schema models for `AuditEvent` and `AuditLogRecord`.
+    - `publisher.py`: Implementation of `EventPublisher` supporting dynamic observer registration and event dispatching.
+    - `observers.py`: Implementation of `FileAuditObserver` and `MemoryAuditObserver`.
+  - Test files created under `workspace/audit_log/test/`:
+    - `test_logger.py`: Verifies observer registration, payload schema validation, tamper detection via checksum calculation, and multi-observer notification loops.
+  - Test suite passes with 100% pass rate locally.
+- Approved by: Tech Lead
+- Approval reference: 2026-08-06 Arch Sync
+## TASK-110 | APPROVED | P2 | [FEATURE] Implement In-Memory Product Inventory CRUD Engine in `workspace/inventory_crud/`
+- Outcome: Build an in-memory Product Inventory Management Service implementing complete CRUD operations, fuzzy search, soft deletion, and Pydantic schema validation.
+- Depends on: None
+- Repository: https://github.com/tapasdas-git/MyCodingAgent.git
+- Harness: primary-name
+- Night-ready: yes
+- Architecture & Tech Stack:
+  - Framework: Python 3.11+, Pydantic (v2)
+  - Pattern: Repository / In-Memory Store Pattern
+    1. InventoryRepository: Thread-safe storage engine supporting Create, Read (by ID and query filter), Update (partial & full), and Soft/Hard Delete.
+    2. Schemas: Pydantic models for product creation (`ProductCreate`), updates (`ProductUpdate`), response formatting (`ProductResponse`), and search filtering (`ProductFilter`).
+- API Key & Secrets Management:
+  - Security Requirement: No external network calls or API keys required. Execution remains entirely local.
+- Workspace Boundary:
+  - Source: `workspace/inventory_crud/Coding/`
+  - Tests: `workspace/inventory_crud/test/`
+  - Requirements: `workspace/inventory_crud/Coding/requirements.txt`
+  - Rule: All generated files must stay strictly inside `workspace/inventory_crud/`. Do not edit files outside this directory.
+- Acceptance:
+  - Isolated workspace directory created at `workspace/inventory_crud/`.
+  - Source files created under `workspace/inventory_crud/Coding/`:
+    - `requirements.txt`: Local dependencies (`pydantic>=2.0.0`, `pytest`).
+    - `schemas.py`: Pydantic models with field constraints (e.g., price > 0, stock >= 0).
+    - `repository.py`: Core `InventoryRepository` class with methods: `create_product`, `get_product_by_id`, `list_products`, `update_product`, and `delete_product`.
+    - `exceptions.py`: Custom exceptions (`ProductNotFoundError`, `DuplicateSKUError`).
+  - Test files created under `workspace/inventory_crud/test/`:
+    - `test_crud.py`: Verifies all CRUD lifecycle operations, duplicate SKU rejection, partial payload updates, soft deletion filtering, and missing entity handling.
+  - Test suite passes with 100% pass rate locally.
+- Approved by: Tech Lead
+- Approval reference: 2026-08-07 Arch Sync
+## TASK-111 | delivered | P2 | [FEATURE] Implement Token Bucket Rate Limiter in `workspace/rate_limiter/`
+- Outcome: Implement an in-memory Rate Limiter service utilizing the Token Bucket algorithm with configurable bucket capacities, refill rates, and Pydantic schema validation.
+- Depends on: None
+- Repository: https://github.com/tapasdas-git/MyCodingAgent.git
+- Harness: primary-name
+- Night-ready: yes
+- Architecture & Tech Stack:
+  - Framework: Python 3.11+, Pydantic (v2)
+  - Pattern: State Pattern / Token Bucket Algorithm
+    1. TokenBucket: Manages token replenishment dynamically based on elapsed time and consumption requests per client/key.
+    2. RateLimiterService: Multi-tenant rate limiter coordinating per-client buckets with status reporting.
+    3. Schemas: Pydantic models for request consumption (`RateLimitRequest`), status response (`RateLimitResult`), and bucket configuration (`BucketConfig`).
+- API Key & Secrets Management:
+  - Security Requirement: No network calls or API keys required. Execution remains entirely local.
+- Workspace Boundary:
+  - Source: `workspace/rate_limiter/Coding/`
+  - Tests: `workspace/rate_limiter/test/`
+  - Requirements: `workspace/rate_limiter/Coding/requirements.txt`
+  - Rule: All generated files must stay strictly inside `workspace/rate_limiter/`. Do not edit files outside this directory.
+- Acceptance:
+  - Isolated workspace directory created at `workspace/rate_limiter/`.
+  - Source files created under `workspace/rate_limiter/Coding/`:
+    - `requirements.txt`: Local dependencies (`pydantic>=2.0.0`, `pytest`).
+    - `schemas.py`: Pydantic models for `BucketConfig`, `RateLimitRequest`, and `RateLimitResult`.
+    - `limiter.py`: Implementation of `TokenBucket` class and `RateLimiterService` supporting token consumption (`allow_request`) and status metrics.
+  - Test files created under `workspace/rate_limiter/test/`:
+    - `test_limiter.py`: Verifies burst request handling, bucket exhaustion (blocking requests), time-based token refill mechanisms, and isolated multi-client tracking.
+  - Test suite passes with 100% pass rate locally.
+- Approved by: Tech Lead
+- Approval reference: 2026-08-07 Arch Sync
+## TASK-112 | PR creation complete | P2 | [FEATURE] Implement Async Web Content Fetcher Module in `workspace/async_crawler/`
+- Outcome: Implement an asynchronous, concurrency-limited HTTP content fetcher capable of retrieving raw text/HTML, enforcing independent per-host concurrency limits, retrying transient failures with exponential backoff, and returning Pydantic-validated results.
+- Depends on: None
+- Repository: https://github.com/tapasdas-git/MyCodingAgent.git
+- Harness: primary-name
+- Night-ready: yes
+- Architecture & Tech Stack:
+  - Framework: Python 3.11+, asyncio, httpx, Pydantic (v2)
+  - Pattern: Async Worker Queue / Semaphore Pattern
+    1. AsyncFetcher: Core engine using one reusable `httpx.AsyncClient` during its async context and a separately keyed `asyncio.Semaphore` per normalized host.
+    2. Schemas: Pydantic models for `CrawlRequest`, `CrawlResult`, and fetcher configuration including positive concurrency, timeout, retry-count, and backoff constraints.
+    3. Resilience: Deterministic exponential backoff for `429`, `502`, `503`, and `504`; non-retryable HTTP responses fail immediately.
+    4. Testability: Time delay and HTTP transport behavior must be injectable or mockable so tests never make real network calls or wait for real backoff intervals.
+- API Key & Secrets Management:
+  - Security Requirement: No hardcoded credentials or target endpoints. Accept only validated `http` and `https` request URLs; tests must use injected or mocked transports and remain fully offline.
+- Workspace Boundary:
+  - Source: `workspace/async_crawler/Coding/`
+  - Tests: `workspace/async_crawler/test/`
+  - Requirements: `workspace/async_crawler/Coding/requirements.txt`
+  - Rule: All generated files must stay strictly inside `workspace/async_crawler/`. Do not edit files outside this directory.
+- Implementation Guardrails:
+  - Use `httpx.AsyncClient` through an asynchronous context manager and close it deterministically.
+  - Enforce `max_concurrent_requests` independently per normalized host rather than through one global semaphore.
+  - Retry only `429`, `502`, `503`, and `504` up to configured `max_retries` (default `3`) using exponential backoff; define whether `max_retries` counts retries after the initial request.
+  - Raise `CrawlTimeoutError` for request timeouts and `CrawlFetchError` after retry exhaustion or for non-retryable HTTP failures such as `401` and `404`.
+  - Preserve cancellation by re-raising `asyncio.CancelledError`; do not convert cancellation into a domain failure.
+  - Validate all configuration, request, and result objects with Pydantic v2 models; do not return unvalidated dictionaries or untyped tuples.
+  - Fully type all public function and method signatures. Do not use bare exception handlers or swallow unexpected failures.
+  - Declare `httpx>=0.24.0`, `pydantic>=2.0.0`, `pytest`, and `pytest-asyncio` in `requirements.txt`.
+- Acceptance:
+  - Isolated workspace created at `workspace/async_crawler/`.
+  - Source files created under `workspace/async_crawler/Coding/`:
+    - `requirements.txt`: Contains all task runtime and test dependencies.
+    - `schemas.py`: Defines validated `CrawlRequest`, `CrawlResult`, and fetcher configuration models.
+    - `exceptions.py`: Custom `CrawlFetchError` and `CrawlTimeoutError`.
+    - `fetcher.py`: Implements `AsyncFetcher` with per-host semaphore locking, deterministic client lifecycle, timeout handling, and exponential-backoff retries.
+  - Test files created under `workspace/async_crawler/test/`:
+    - `test_fetcher.py`: Uses pytest-asyncio and mocked or injected HTTP behavior to verify successful fetches, independent per-host concurrency limits, retry counts and backoff progression, retry exhaustion, immediate non-retryable failures, timeouts, cancellation propagation, schema validation, and client cleanup without real network calls.
+  - All tests pass locally with zero real network access using `pytest workspace/async_crawler/test/`.
+- Approved by: Tech Lead
+- Approval reference: 2026-08-07 Arch Sync

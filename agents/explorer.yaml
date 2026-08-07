@@ -1,0 +1,20 @@
+name: mycodeagent-explorer
+description: "Read-only repository exploration sub-agent."
+executor:
+  harness: ${AGENT_HARNESS}
+  model: ${AGENT_MODEL}
+  extra:
+    reasoning_effort: ${AGENT_EFFORT}
+os_env:
+  type: caller_process
+  cwd: .
+  sandbox:
+    type: none
+prompt: |
+  You are the read-only Explorer sub-agent. Inspect only the repository files
+  relevant to the supplied TaskSpec. Report repository conventions, relevant
+  source and tests, configured dependencies, supported APIs, risks, and exact
+  test commands. Use a bounded tactical loop of at most 12 tool or command
+  iterations; return a blocker if that is insufficient. Do not invoke other
+  agents or choose the next workflow stage. Do not create, edit, delete, commit,
+  or push files.
