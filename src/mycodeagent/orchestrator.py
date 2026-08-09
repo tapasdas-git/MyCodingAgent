@@ -43,7 +43,10 @@ class SupervisorOrchestrator:
         self.config = config
         self.executor = executor
         self.state = StateStore(self.root)
-        self.worktrees = WorktreeManager(self.root)
+        worktree_root = config.worktree_root
+        if not worktree_root.is_absolute():
+            worktree_root = self.root / worktree_root
+        self.worktrees = WorktreeManager(self.root, worktree_root=worktree_root)
         self.tests = TestRunner(python_executable)
         self.delivery = PullRequestDelivery()
         self.create_worktree = create_worktree

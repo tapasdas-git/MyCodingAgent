@@ -24,6 +24,25 @@ model = "claude-model"
 """, encoding="utf-8")
     config = load_workflow_config(path)
     assert config.role_configs[next(r for r in config.role_configs if r.value == "implementer")].harness == "anthropic"
+    assert config.worktree_root == Path("../CodedWorkspace")
+
+
+def test_worktree_root_is_loaded_from_configuration(tmp_path: Path):
+    path = tmp_path / "runtime.toml"
+    path.write_text("""[workflow]
+max_cycles = 5
+[defaults]
+harness = "codex"
+model = "model"
+effort = "high"
+time_limit_seconds = 60
+[paths]
+worktree_root = 'C:\\MyCodingAgent\\worktrees'
+""", encoding="utf-8")
+
+    config = load_workflow_config(path)
+
+    assert str(config.worktree_root) == r"C:\MyCodingAgent\worktrees"
 
 
 def test_max_cycles_is_fixed_at_five(tmp_path: Path):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +19,7 @@ class WorkflowConfig:
     time_limit_seconds: int
     max_cycles: int
     role_configs: dict[AgentRole, AgentRoleConfig]
+    worktree_root: Path = Path("../CodedWorkspace")
 
     def role(self, role: AgentRole) -> AgentRoleConfig:
         try:
@@ -43,6 +45,11 @@ def load_workflow_config(path: Path) -> WorkflowConfig:
     if max_cycles != 5:
         raise ConfigurationError("MyCodeAgent requires max_cycles = 5")
 
+    paths_data = data.get("paths", {})
+    worktree_root = Path(
+        os.path.expandvars(str(paths_data.get("worktree_root", "../CodedWorkspace")))
+    ).expanduser()
+
     role_data = data.get("agents", {})
     role_configs: dict[AgentRole, AgentRoleConfig] = {}
     for role in AgentRole:
@@ -65,4 +72,5 @@ def load_workflow_config(path: Path) -> WorkflowConfig:
         time_limit_seconds=int(defaults["time_limit_seconds"]),
         max_cycles=max_cycles,
         role_configs=role_configs,
+        worktree_root=worktree_root,
     )

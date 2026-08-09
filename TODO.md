@@ -300,3 +300,64 @@ Acceptance:
   - All tests pass locally with zero real network access using `pytest workspace/async_crawler/test/`.
 - Approved by: Tech Lead
 - Approval reference: 2026-08-07 Arch Sync
+## TASK-113 | PR creation complete | P2 | [FEATURE] Implement Async Priority Task Scheduler Module in `workspace/priority_scheduler/`
+- Outcome: Implement an asynchronous, priority-aware task scheduling utility capable of processing jobs based on priority levels, enforcing global and per-category concurrency limits, handling worker retries with backoff, and returning Pydantic-validated execution summaries.
+- Depends on: None
+- Repository: https://github.com/tapasdas-git/MyCodingAgent.git
+- Harness: primary-name
+- Night-ready: yes
+- Architecture & Tech Stack:
+  - Framework: Python 3.11+, asyncio, Pydantic (v2)
+  - Pattern: Priority Queue / Producer-Consumer Worker Pattern
+    1. PriorityScheduler: Core engine utilizing an `asyncio.PriorityQueue` to route jobs based on numerical priority, managed by a bounded pool of asynchronous worker tasks.
+    2. Schemas: Pydantic models for `TaskJob`, `TaskResult`, and scheduler configuration enforcing valid priority bounds, retry counts, execution timeouts, and queue size limits.
+    3. Resilience: Configurable max retries per task for transient failures with backoff; failed tasks transition to a terminal error state upon retry exhaustion.
+    4. Testability: Execution clocks and async delays must be mockable/injectable so tests never depend on wall-clock time or real sleep delays.
+- API Key & Secrets Management:
+  - Security Requirement: No network credentials or external state dependencies. All execution logic operates strictly in-memory; tests must execute entirely offline.
+- Workspace Boundary:
+  - Source: `workspace/priority_scheduler/Coding/`
+  - Tests: `workspace/priority_scheduler/test/`
+  - Requirements: `workspace/priority_scheduler/Coding/requirements.txt`
+  - Rule: All generated files must stay strictly inside `workspace/priority_scheduler/`. Do not edit files outside this directory.
+- Implementation Guardrails:
+  - Manage worker task lifecycles cleanly within an asynchronous context manager (`async with`) and ensure graceful shutdown of all background consumers upon exit.
+  - Enforce worker pool limits via worker pool count and category-level execution limits using isolated `asyncio.Semaphore` instances.
+  - Process higher-priority tasks ahead of lower-priority ones, retaining FIFO ordering within identical priority levels.
+  - Raise `TaskTimeoutError` when task execution exceeds its specified time budget and `TaskExecutionError` after retry exhaustion or unhandled task exceptions.
+  - Preserve cancellation by re-raising `asyncio.CancelledError`; do not absorb worker cancellation into generic domain errors.
+  - Validate all job definitions, queue payloads, and execution results using Pydantic v2 models; do not accept or return untyped dicts.
+  - Fully type-annotate all public classes, signatures, and async generators. Do not use bare `except:` blocks or swallow unexpected errors.
+  - Declare `pydantic>=2.0.0`, `pytest`, and `pytest-asyncio` in `requirements.txt`.
+- Acceptance:
+  - Isolated workspace created at `workspace/priority_scheduler/`.
+  - Source files created under `workspace/priority_scheduler/Coding/`:
+    - `requirements.txt`: Contains runtime and test dependencies.
+    - `schemas.py`: Defines validated `TaskJob`, `TaskResult`, and scheduler configuration models.
+    - `exceptions.py`: Custom `TaskExecutionError` and `TaskTimeoutError`.
+    - `scheduler.py`: Implements `PriorityScheduler` with worker pool lifecycle, priority queue consumption, category semaphores, and retry logic.
+  - Test files created under `workspace/priority_scheduler/test/`:
+    - `test_scheduler.py`: Uses `pytest-asyncio` to verify priority ordering, concurrency throttling, retry exhaustion, task timeout enforcement, cancellation safety, context-manager cleanup, and schema validation.
+  - All tests pass locally with zero external dependencies using `pytest workspace/priority_scheduler/test/`.
+- Approved by: Tech Lead
+- Approval reference: 2026-08-07 Arch Sync
+## TASK-114 | PR creation complete | P2 | [FEATURE] Add greeting service in `workspace/greeting_service/`
+- Outcome: Provide a typed greeting function with deterministic unit tests.
+- Depends on: None
+- Repository: https://github.com/your-account/MyCodingAgent.git
+- Architecture & Tech Stack:
+  - Python 3.11+ with pytest.
+- API Key & Secrets Management:
+  - No network calls or secrets are required.
+- Workspace Boundary:
+  - Source: `workspace/greeting_service/Coding/`
+  - Tests: `workspace/greeting_service/test/`
+  - Requirements: `workspace/greeting_service/Coding/requirements.txt`
+  - Rule: Do not modify files outside `workspace/greeting_service/`.
+- Acceptance:
+  - `workspace/greeting_service/Coding/service.py` defines `greet(name: str) -> str`.
+  - `workspace/greeting_service/Coding/requirements.txt` exists.
+  - `workspace/greeting_service/test/test_service.py` covers valid and invalid input.
+  - The task pytest suite passes locally.
+- Approved by: Tech Lead
+- Approval reference: Example approval

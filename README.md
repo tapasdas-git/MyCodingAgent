@@ -38,10 +38,26 @@ gh auth status
 git remote -v
 ```
 
+On native Windows, run the equivalent checks from PowerShell:
+
+```powershell
+py -3 --version
+git --version
+Get-Command omnigent
+gh auth status
+git remote -v
+```
+
 If the compatible Omnigent executable is not named `omnigent`, set its path:
 
 ```bash
 export MYCODEAGENT_OMNIGENT_EXECUTABLE=/absolute/path/to/omnigent
+```
+
+PowerShell equivalent:
+
+```powershell
+$env:MYCODEAGENT_OMNIGENT_EXECUTABLE = "C:\Tools\Omnigent\omnigent.exe"
 ```
 
 ### 2. Install MyCodeAgent
@@ -56,8 +72,28 @@ python -m pip install pytest
 python -m pytest -q -p no:cacheprovider
 ```
 
-The current control-plane suite contains 37 tests. A successful installation
-ends with `37 passed`.
+On native Windows PowerShell, use:
+
+```powershell
+py -3 -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install -e .
+python -m pip install pytest
+python -m pytest -q -p no:cacheprovider
+```
+
+If PowerShell prevents activation, the virtual environment can be used without
+changing the execution policy:
+
+```powershell
+.\venv\Scripts\python.exe -m pip install -e .
+.\venv\Scripts\python.exe -m pip install pytest
+.\venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
+```
+
+The current control-plane suite contains 44 tests, including one native-Windows
+path-separator test. Non-Windows runs report `43 passed, 1 skipped`; a successful
+native Windows run should execute all 44 tests.
 
 ### 3. Add a ready task to `TODO.md`
 
@@ -97,6 +133,11 @@ The task parser requires:
 
 Backticked filenames in the task are treated as required artifacts, so keep
 their names and paths accurate.
+
+Task workspace paths are portable repository-relative identifiers. Use forward
+slashes such as `workspace/greeting_service/Coding/` in `TODO.md` on every
+operating system, including Windows. Physical paths such as the repository and
+worktree locations are converted to native paths by MyCodeAgent.
 
 ### 4. Validate the normalized task
 
@@ -315,7 +356,11 @@ max_cycles = 5
 harness = "codex"
 model = "gpt-5.4-mini"
 effort = "high"
-time_limit_seconds = 600
+time_limit_seconds = 1200
+
+[paths]
+# Relative to the primary repository root.
+worktree_root = "../CodedWorkspace"
 
 [agents.explorer]
 read_only = true
@@ -330,14 +375,56 @@ write_scope = "tests"
 read_only = true
 ```
 
-`time_limit_seconds = 600` is the maximum duration of one Supervisor or
-sub-agent invocation; it does not make every invocation run for ten minutes.
+`time_limit_seconds = 1200` is the maximum duration of one Supervisor or
+sub-agent invocation; it does not make every invocation run for twenty minutes.
 Role-specific limits can be set with `timeout_seconds` inside a role section.
 The deterministic pytest runner has a separate 300-second upper bound. A
 recognized transient Omnigent transport failure is retried once.
 
 The maximum strategic implementation/remediation cycle count is fixed at five.
 Configuration with another value is rejected.
+
+### Worktree location and Windows paths
+
+`paths.worktree_root` controls where task worktrees are created. A relative
+value is resolved from the primary repository root. The default
+`../CodedWorkspace` therefore keeps worktrees outside the primary checkout.
+The final layout is:
+
+```text
+<worktree_root>/<repository-name>/<task-id>
+```
+
+For a fixed native Windows location, forward slashes are the simplest TOML
+syntax:
+
+```toml
+[paths]
+worktree_root = "C:/MyCodingAgent/worktrees"
+```
+
+Backslashes are also accepted, but use a TOML literal string or escape every
+backslash:
+
+```toml
+[paths]
+worktree_root = 'C:\MyCodingAgent\worktrees'
+# Equivalent: "C:\\MyCodingAgent\\worktrees"
+```
+
+Environment variables in the value are expanded, so Windows installations may
+also use:
+
+```toml
+[paths]
+worktree_root = "%LOCALAPPDATA%/MyCodingAgent/worktrees"
+```
+
+When checking registered worktrees, MyCodeAgent parses Git's porcelain output
+and compares normalized native paths. Consequently, `C:/Projects/worktree` and
+`C:\Projects\worktree` are treated as the same Windows path. Git branch names
+remain slash-separated identifiers such as `feature/task-113`; do not convert
+branch-name slashes to backslashes.
 
 ## Implementation map
 
@@ -411,6 +498,18 @@ git -C /path/to/worktree status --short --untracked-files=all
 
 MyCodeAgent retains the worktree when unexpected residue could be lost. Remove
 or preserve those files deliberately before performing manual Git cleanup.
+
+On Windows PowerShell, quote paths containing spaces:
+
+```powershell
+git worktree list
+git -C "C:\My Worktrees\MyCodingAgent\task-113" status --short --untracked-files=all
+```
+
+If Git displays a worktree with forward slashes while PowerShell displays
+backslashes, that difference alone is harmless. If registration still fails,
+confirm that both paths resolve to the same drive and directory and that the
+configured `paths.worktree_root` points to the intended location.
 
 ### `mycodeagent: 'main' is not a valid AgentRole`
 

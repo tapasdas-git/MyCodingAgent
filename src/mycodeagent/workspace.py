@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from dataclasses import dataclass
@@ -21,19 +22,24 @@ class WorktreeContext:
 
 
 class WorktreeManager:
-    def __init__(self, repository_root: Path) -> None:
+    def __init__(self, repository_root: Path, *, worktree_root: Path | None = None) -> None:
         self.repository_root = repository_root.resolve()
+        self.worktree_root = (
+            worktree_root.resolve()
+            if worktree_root is not None
+            else (self.repository_root.parent / "CodedWorkspace").resolve()
+        )
 
     def create(self, task: TaskSpec) -> WorktreeContext:
         slug = re.sub(r"[^a-z0-9-]+", "-", task.task_id.lower()).strip("-")
         branch = f"feature/{slug}"
         worktree = self.worktree_path(task)
         if worktree.exists():
-            registered = self._git("worktree", "list", "--porcelain")
-            if f"worktree {worktree}" not in registered:
+            registered = self._git("worktree", "list", "--porcelain", "-z")
+            if not self._is_registered_worktree(worktree, registered):
                 raise ValidationError(f"Existing path is not a registered worktree: {worktree}")
             current_branch = self._git_at(worktree, "branch", "--show-current")
-            if current_branch != branch:
+            if self._branch_key(current_branch) != self._branch_key(branch):
                 raise ValidationError(
                     f"Existing worktree uses branch '{current_branch}', expected '{branch}': {worktree}"
                 )
@@ -68,12 +74,7 @@ class WorktreeManager:
     def worktree_path(self, task: TaskSpec) -> Path:
         """Place task worktrees beside the primary checkout, outside its diff."""
         slug = re.sub(r"[^a-z0-9-]+", "-", task.task_id.lower()).strip("-")
-        return (
-            self.repository_root.parent
-            / "CodedWorkspace"
-            / self.repository_root.name
-            / slug
-        )
+        return self.worktree_root / self.repository_root.name / slug
 
     def task_paths(self, worktree: Path, task: TaskSpec) -> tuple[Path, Path, Path]:
         root = self._inside(worktree, task.workspace.root)
@@ -85,12 +86,12 @@ class WorktreeManager:
 
     def remove_delivered(self, task: TaskSpec, worktree: Path) -> None:
         """Remove a delivered worktree only when no task data can be lost."""
-        expected = self.worktree_path(task).resolve()
-        candidate = worktree.resolve()
-        if candidate != expected:
+        expected = self.worktree_path(task).resolve(strict=False)
+        candidate = worktree.resolve(strict=False)
+        if self._path_key(candidate) != self._path_key(expected):
             raise ValidationError(f"Refusing to remove unexpected worktree path: {candidate}")
-        registered = self._git("worktree", "list", "--porcelain")
-        if f"worktree {candidate}" not in registered:
+        registered = self._git("worktree", "list", "--porcelain", "-z")
+        if not self._is_registered_worktree(candidate, registered):
             raise ValidationError(f"Worktree is not registered: {candidate}")
         status = self._git_at(candidate, "status", "--porcelain", "--untracked-files=all")
         unexpected = []
@@ -115,6 +116,35 @@ class WorktreeManager:
         if not candidate.is_relative_to(root.resolve()):
             raise ValidationError(f"Path escapes worktree: {relative}")
         return candidate
+
+    @staticmethod
+    def _path_key(value: str | Path) -> str:
+        """Return a native, case-aware filesystem identity for comparisons."""
+        path = Path(value).expanduser().resolve(strict=False)
+        return os.path.normcase(os.path.normpath(str(path)))
+
+    @staticmethod
+    def _branch_key(value: str) -> str:
+        """Normalize Git's full and short local branch representations."""
+        branch = value.strip()
+        return branch.removeprefix("refs/heads/")
+
+    @staticmethod
+    def _registered_worktree_paths(output: str) -> tuple[Path, ...]:
+        """Parse worktree paths from newline or NUL-delimited porcelain output."""
+        fields = output.replace("\0", "\n").splitlines()
+        return tuple(
+            Path(field.removeprefix("worktree "))
+            for field in fields
+            if field.startswith("worktree ")
+        )
+
+    def _is_registered_worktree(self, candidate: Path, output: str) -> bool:
+        expected = self._path_key(candidate)
+        return any(
+            self._path_key(registered) == expected
+            for registered in self._registered_worktree_paths(output)
+        )
 
     def _git(self, *args: str) -> str:
         return self._git_at(self.repository_root, *args)

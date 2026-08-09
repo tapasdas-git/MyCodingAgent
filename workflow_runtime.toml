@@ -8,7 +8,11 @@ max_cycles = 5
 harness = "codex"
 model = "gpt-5.4-mini"
 effort = "high"
-time_limit_seconds = 600
+time_limit_seconds = 1200
+
+[paths]
+# Relative paths are resolved from the primary repository root.
+worktree_root = "../CodedWorkspace"
 
 [agents.explorer]
 read_only = true
