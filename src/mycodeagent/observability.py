@@ -40,8 +40,10 @@ class EventLogger:
         self.task_log_dir = root / "logs"
         self.task_log_dir.mkdir(parents=True, exist_ok=True)
         self.task_path = self.task_log_dir / f"{trace.task_id}.logs"
+        self.human_path = self.task_log_dir / f"{trace.task_id}.log"
         self._secure_file(self.path)
         self._secure_file(self.task_path)
+        self._secure_file(self.human_path)
         self.trace = trace
 
     def event(
@@ -68,6 +70,76 @@ class EventLogger:
         payload = json.dumps(record, sort_keys=True, ensure_ascii=False) + "\n"
         self._append(self.path, payload)
         self._append(self.task_path, payload)
+        message = self._human_message(record)
+        if message:
+            timestamp = datetime.fromisoformat(record["timestamp"]).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+            self._append(self.human_path, f"{timestamp} {self.trace.task_id} {message}\n")
+
+    @staticmethod
+    def _human_message(record: dict[str, Any]) -> str | None:
+        event_type = str(record["event_type"])
+        stage = str(record["stage"])
+        status = str(record["status"])
+        details = record["details"]
+        label = {
+            "explorer": "Repository exploration",
+            "implementer": "Implementation",
+            "test_writer": "Test writing",
+            "reviewer": "Review",
+        }.get(stage, stage.replace("_", " ").title())
+
+        if event_type == "workflow.started":
+            return "Workflow started"
+        if event_type == "agent.started":
+            return f"{label} started"
+        if event_type == "agent.finished":
+            return f"{label} completed"
+        if event_type == "agent.failed":
+            return f"{label} failed — {details.get('error', 'unknown error')}"
+        if event_type == "agent.attempt.started":
+            return f"{label} attempt {details.get('attempt', '?')} started"
+        if event_type == "agent.attempt.failed":
+            duration = details.get("duration_seconds")
+            elapsed = f" after {duration:.1f}s" if isinstance(duration, (int, float)) else ""
+            return f"{label} attempt {details.get('attempt', '?')} failed{elapsed} — {details.get('error', 'unknown error')}"
+        if event_type == "agent.attempt.completed":
+            duration = details.get("duration_seconds")
+            elapsed = f" in {duration:.1f}s" if isinstance(duration, (int, float)) else ""
+            return f"{label} attempt {details.get('attempt', '?')} completed{elapsed}"
+        if event_type == "agent.retrying":
+            return f"{label} retrying with attempt {details.get('next_attempt', '?')}"
+        if event_type == "validation.started":
+            return "Scope validation started"
+        if event_type == "validation.completed":
+            return f"Scope validation {status}"
+        if event_type == "tests.started":
+            return "Tests started"
+        if event_type == "tests.completed":
+            summary = str(details.get("stdout", "")).strip().splitlines()
+            result = summary[-1] if summary else ""
+            suffix = f" — {result}" if result else ""
+            return f"Tests {status}{suffix}"
+        if event_type == "review.completed":
+            return f"Review {status.replace('_', ' ')}"
+        if event_type == "delivery.started":
+            return "Pull request creation started"
+        if event_type == "workflow.completed":
+            if stage == "delivery":
+                artifacts = details.get("artifacts", [])
+                suffix = f" — {artifacts[-1]}" if artifacts else ""
+                return f"Pull request created{suffix}"
+            return "Workflow completed successfully"
+        if event_type == "workflow.finished":
+            return "Workflow completed successfully"
+        if event_type == "worktree.removed":
+            return "Worktree cleanup completed"
+        if event_type == "worktree.retained":
+            return f"Worktree cleanup skipped — {details.get('reason', 'worktree retained')}"
+        if event_type == "workflow.paused":
+            return "Workflow paused — user input required"
+        if event_type == "workflow.error":
+            return f"Workflow failed — {details.get('error', 'unknown error')}"
+        return None
 
     def artifact(self, name: str, content: str) -> Path:
         safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", name)

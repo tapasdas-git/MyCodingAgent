@@ -5,8 +5,11 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import tempfile
+import time
+from collections.abc import Callable
 from pathlib import Path
 
 from .config import WorkflowConfig
@@ -91,7 +94,13 @@ class OmnigentAgentExecutor:
         role = ACTION_ROLES.get(action)
         return ActionDecision(action=action, role=role, rationale=str(payload.get("rationale", "")))
 
-    def invoke_role(self, role: AgentRole, memory: ExecutionMemory, request: dict) -> AgentResult:
+    def invoke_role(
+        self,
+        role: AgentRole,
+        memory: ExecutionMemory,
+        request: dict,
+        progress: Callable[[str, str, dict], None] | None = None,
+    ) -> AgentResult:
         runtime = self.config.role(role)
         output = self._run_agent(
             self.agents_dir / f"{role.value}.yaml",
@@ -101,6 +110,7 @@ class OmnigentAgentExecutor:
             timeout=runtime.timeout_seconds,
             prompt=json.dumps(request, ensure_ascii=False),
             cwd=Path(memory.worktree) if memory.worktree else self.repository_root,
+            progress=progress,
         )
         return AgentResult(role=role, status="completed", summary=output[-2000:], raw_output=output)
 
@@ -152,6 +162,7 @@ class OmnigentAgentExecutor:
         timeout: int,
         prompt: str,
         cwd: Path,
+        progress: Callable[[str, str, dict], None] | None = None,
     ) -> str:
         if not definition.exists():
             raise AgentExecutionError(f"Agent definition does not exist: {definition}")
@@ -163,32 +174,76 @@ class OmnigentAgentExecutor:
         )
         environment = os.environ.copy()
         omnigent_executable = environment.get("MYCODEAGENT_OMNIGENT_EXECUTABLE", "omnigent")
+        deadline = time.monotonic() + timeout
         with tempfile.TemporaryDirectory(prefix="mycodeagent-agent-") as directory:
             path = Path(directory) / definition.name
             path.write_text(rendered, encoding="utf-8")
             for attempt in range(1, MAX_AGENT_ATTEMPTS + 1):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise AgentExecutionError(
+                        f"Agent '{definition.stem}' exceeded its {timeout}-second total retry budget"
+                    )
+                if progress:
+                    progress("agent.attempt.started", "running", {"attempt": attempt})
+                attempt_started = time.monotonic()
                 try:
-                    result = subprocess.run(
+                    process = subprocess.Popen(
                         [omnigent_executable, "run", str(path), "--harness", harness, "--model", model, "-p", prompt],
                         cwd=cwd,
                         env=environment,
-                        capture_output=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
                         text=True,
-                        timeout=timeout,
-                        check=False,
+                        start_new_session=True,
                     )
+                    stdout, stderr = process.communicate(timeout=remaining)
                 except subprocess.TimeoutExpired as exc:
-                    raise AgentExecutionError(f"Agent '{definition.stem}' exceeded {timeout} seconds") from exc
-                output = "\n".join(value for value in (result.stdout, result.stderr) if value).strip()
-                if result.returncode == 0:
+                    self._signal_process_group(process.pid, signal.SIGTERM)
+                    try:
+                        process.communicate(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        self._signal_process_group(process.pid, signal.SIGKILL)
+                        process.communicate()
+                    if progress:
+                        progress("agent.attempt.failed", "failed", {
+                            "attempt": attempt,
+                            "duration_seconds": round(time.monotonic() - attempt_started, 3),
+                            "error": f"total timeout after {timeout} seconds",
+                        })
+                    raise AgentExecutionError(
+                        f"Agent '{definition.stem}' exceeded its {timeout}-second total retry budget"
+                    ) from exc
+                output = "\n".join(value for value in (stdout, stderr) if value).strip()
+                if process.returncode == 0:
+                    if progress:
+                        progress("agent.attempt.completed", "completed", {
+                            "attempt": attempt,
+                            "duration_seconds": round(time.monotonic() - attempt_started, 3),
+                        })
                     return output
                 transient = any(value in output.lower() for value in TRANSIENT_RUNNER_ERRORS)
+                if progress:
+                    progress("agent.attempt.failed", "failed", {
+                        "attempt": attempt,
+                        "duration_seconds": round(time.monotonic() - attempt_started, 3),
+                        "error": output[-500:] or f"exit {process.returncode}",
+                    })
                 if not transient or attempt == MAX_AGENT_ATTEMPTS:
                     raise AgentExecutionError(
-                        f"Agent '{definition.stem}' failed with exit {result.returncode} "
+                        f"Agent '{definition.stem}' failed with exit {process.returncode} "
                         f"after {attempt} attempt(s): {output[-2000:]}"
                     )
+                if progress:
+                    progress("agent.retrying", "retrying", {"next_attempt": attempt + 1})
         raise AgentExecutionError(f"Agent '{definition.stem}' did not produce a result")
+
+    @staticmethod
+    def _signal_process_group(pid: int, value: signal.Signals) -> None:
+        try:
+            os.killpg(pid, value)
+        except ProcessLookupError:
+            pass
 
     @staticmethod
     def _json(output: str) -> dict:

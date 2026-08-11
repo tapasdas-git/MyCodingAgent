@@ -13,6 +13,7 @@ from .config import WorkflowConfig
 from .delivery import PullRequestDelivery
 from .errors import AgentExecutionError, IterationLimitError, ValidationError
 from .models import (
+    AgentResult,
     AgentRole,
     ExecutionMemory,
     ReviewDecision,
@@ -150,7 +151,7 @@ class SupervisorOrchestrator:
         deliver: bool,
     ) -> None:
         if action is SupervisorAction.EXPLORE:
-            result = self.executor.invoke_role(AgentRole.EXPLORER, memory, self._context(memory))
+            result = self._invoke_role(AgentRole.EXPLORER, memory, self._context(memory), logger)
             memory.agent_results.append(self._agent_record(result))
             memory.repository_context = {"summary": result.summary}
             return
@@ -160,17 +161,18 @@ class SupervisorOrchestrator:
             request = self._context(memory)
             request["mode"] = "remediation" if action is SupervisorAction.REMEDIATE else "initial_implementation"
             request["review_context"] = memory.unresolved_findings
-            result = self.executor.invoke_role(AgentRole.IMPLEMENTER, memory, request)
+            result = self._invoke_role(AgentRole.IMPLEMENTER, memory, request, logger)
             memory.agent_results.append(self._agent_record(result))
             memory.current_fingerprint = ""
             return
         if action is SupervisorAction.WRITE_TESTS:
-            result = self.executor.invoke_role(AgentRole.TEST_WRITER, memory, self._context(memory))
+            result = self._invoke_role(AgentRole.TEST_WRITER, memory, self._context(memory), logger)
             memory.agent_results.append(self._agent_record(result))
             return
         if action is SupervisorAction.VALIDATE:
             if memory.state is WorkflowState.IMPLEMENTING:
                 self.state.transition(memory, WorkflowState.VALIDATING)
+            logger.event("validation.started", stage="validation", status="running", cycle=memory.cycle)
             validation = WorkspaceValidator(Path(memory.worktree or self.root), memory.task).validate()
             memory.current_fingerprint = validation.fingerprint
             logger.event(
@@ -187,6 +189,7 @@ class SupervisorOrchestrator:
                 self.state.transition(memory, WorkflowState.TESTING)
             return
         if action is SupervisorAction.RUN_TESTS:
+            logger.event("tests.started", stage="testing", status="running", cycle=memory.cycle)
             result = self.tests.run(Path(memory.worktree or self.root), memory.task)
             memory.test_results.append(asdict(result))
             memory.current_fingerprint = result.fingerprint
@@ -204,8 +207,12 @@ class SupervisorOrchestrator:
                 self.state.transition(memory, WorkflowState.CHANGES_REQUESTED)
             return
         if action is SupervisorAction.REVIEW:
-            result = self.executor.invoke_role(AgentRole.REVIEWER, memory, self._review_context(memory))
+            result = self._invoke_role(AgentRole.REVIEWER, memory, self._review_context(memory), logger)
             review = self.executor.parse_review(result.raw_output, memory.current_fingerprint)
+            logger.event(
+                "review.completed", stage="review", status=review.decision.value,
+                cycle=memory.cycle, details={"summary": review.summary},
+            )
             memory.review_results.append(
                 {
                     "decision": review.decision.value,
@@ -234,6 +241,7 @@ class SupervisorOrchestrator:
             if not deliver:
                 raise ValidationError("Delivery was not authorized")
             self.state.transition(memory, WorkflowState.DELIVERING)
+            logger.event("delivery.started", stage="delivery", status="running", cycle=memory.cycle)
             pr_url = self.delivery.deliver(memory)
             memory.artifacts.append(pr_url)
             self.state.transition(memory, WorkflowState.DELIVERED)
@@ -254,6 +262,10 @@ class SupervisorOrchestrator:
                         cycle=memory.cycle,
                         details={"worktree": memory.worktree, "reason": str(exc)},
                     )
+            logger.event(
+                "workflow.finished", stage="workflow", status="completed",
+                cycle=memory.cycle, details={"state": memory.state.value},
+            )
             return
         if action is SupervisorAction.REQUEST_INPUT:
             self.state.transition(memory, WorkflowState.NEEDS_INPUT)
@@ -263,6 +275,49 @@ class SupervisorOrchestrator:
             )
             return
         raise ValidationError(f"Unsupported Supervisor action: {action.value}")
+
+    def _invoke_role(
+        self,
+        role: AgentRole,
+        memory: ExecutionMemory,
+        request: dict,
+        logger: EventLogger,
+    ) -> AgentResult:
+        logger.event("agent.started", stage=role.value, status="running", cycle=memory.cycle)
+        try:
+            result = self.executor.invoke_role(
+                role, memory, request,
+                progress=lambda event, status, details: logger.event(
+                    event, stage=role.value, status=status,
+                    cycle=memory.cycle, details=details,
+                ),
+            )
+            self._assert_role_artifacts(role, memory)
+        except (AgentExecutionError, ValidationError) as exc:
+            logger.event(
+                "agent.failed", stage=role.value, status="failed",
+                cycle=memory.cycle, details={"error": str(exc)},
+            )
+            raise
+        logger.event(
+            "agent.finished", stage=role.value, status="completed",
+            cycle=memory.cycle, details={"summary": result.summary},
+        )
+        return result
+
+    @staticmethod
+    def _assert_role_artifacts(role: AgentRole, memory: ExecutionMemory) -> None:
+        if role not in (AgentRole.IMPLEMENTER, AgentRole.TEST_WRITER):
+            return
+        worktree = Path(memory.worktree or ".")
+        boundary = memory.task.workspace.coding_dir if role is AgentRole.IMPLEMENTER else memory.task.workspace.test_dir
+        expected = [path for path in memory.task.required_files if Path(path).is_relative_to(boundary)]
+        missing = [path for path in expected if not (worktree / path).is_file()]
+        if missing:
+            names = ", ".join(missing)
+            raise AgentExecutionError(
+                f"Agent '{role.value}' returned before creating required artifact(s): {names}"
+            )
 
     @staticmethod
     def _context(memory: ExecutionMemory) -> dict:

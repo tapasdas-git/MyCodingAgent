@@ -341,7 +341,7 @@ Acceptance:
   - All tests pass locally with zero external dependencies using `pytest workspace/priority_scheduler/test/`.
 - Approved by: Tech Lead
 - Approval reference: 2026-08-07 Arch Sync
-## TASK-114 | PR creation complete | P2 | [FEATURE] Add greeting service in `workspace/greeting_service/`
+## TASK-116 | APPROVED | P2 | [FEATURE] Add greeting service in `workspace/greeting_service/`
 - Outcome: Provide a typed greeting function with deterministic unit tests.
 - Depends on: None
 - Repository: https://github.com/your-account/MyCodingAgent.git
@@ -361,3 +361,53 @@ Acceptance:
   - The task pytest suite passes locally.
 - Approved by: Tech Lead
 - Approval reference: Example approval
+## TASK-117 | PR creation complete | P2 | [FEATURE] Add greeting service in `workspace/greeting_service/`
+- Outcome: Provide a typed greeting function with deterministic unit tests.
+- Depends on: None
+- Repository: https://github.com/your-account/MyCodingAgent.git
+- Architecture & Tech Stack:
+  - Python 3.11+ with pytest.
+- API Key & Secrets Management:
+  - No network calls or secrets are required.
+- Workspace Boundary:
+  - Source: `workspace/greeting_service/Coding/`
+  - Tests: `workspace/greeting_service/test/`
+  - Requirements: `workspace/greeting_service/Coding/requirements.txt`
+  - Rule: Do not modify files outside `workspace/greeting_service/`.
+- Acceptance:
+  - `workspace/greeting_service/Coding/service.py` defines `greet(name: str) -> str`.
+  - `workspace/greeting_service/Coding/requirements.txt` exists.
+  - `workspace/greeting_service/test/test_service.py` covers valid and invalid input.
+  - The task pytest suite passes locally.
+- Approved by: Tech Lead
+- Approval reference: Example approval
+## TASK-118 | APPROVED | P2 | [FEATURE] Add greeting service in `workspace/greeting_service/`
+- Outcome: Provide a typed greeting function with deterministic unit tests.
+- Depends on: None
+- Repository: https://github.com/your-account/MyCodingAgent.git
+- Architecture & Tech Stack:
+  - Python 3.11+ with pytest.
+- API Key & Secrets Management:
+  - No network calls or secrets are required.
+- Workspace Boundary:
+  - Source: `workspace/greeting_service/Coding/`
+  - Tests: `workspace/greeting_service/test/`
+  - Requirements: `workspace/greeting_service/Coding/requirements.txt`
+  - Rule: Do not modify files outside `workspace/greeting_service/`.
+- Acceptance:
+  - `workspace/greeting_service/Coding/service.py` defines `greet(name: str) -> str`.
+  - `workspace/greeting_service/Coding/requirements.txt` exists.
+  - `workspace/greeting_service/test/test_service.py` covers valid and invalid input.
+  - The task pytest suite passes locally.
+- Approved by: Tech Lead
+- Approval reference: Example approval
+## TASK-121 | PR creation complete | P2 | [FEATURE] Add greeting service in `workspace/greeting_service/`
+- Outcome: Provide a typed greeting function with deterministic unit tests.
+- Depends on: None
+- Repository: https://github.com/tapasdas-git/MyCodingAgent.git
+- Architecture & Tech Stack:
+  - Python 3.11+ with pytest.
+- Acceptance:
+  - `workspace/greeting_service/Coding/service.py` defines `greet(name: str) -> str`.
+  - `workspace/greeting_service/test/test_service.py` covers valid and invalid input.
+  - The task pytest suite passes locally.

@@ -1,4 +1,5 @@
 import json
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -70,11 +71,21 @@ def test_transient_runner_disconnect_is_retried_once(monkeypatch, tmp_path):
     ])
     calls = []
 
-    def fake_run(*args, **kwargs):
-        calls.append(args)
-        return next(results)
+    class FakeProcess:
+        pid = 123
 
-    monkeypatch.setattr("mycodeagent.agent_executor.subprocess.run", fake_run)
+        def __init__(self, result):
+            self.result = result
+            self.returncode = result.returncode
+
+        def communicate(self, timeout=None):
+            return self.result.stdout, self.result.stderr
+
+    def fake_popen(*args, **kwargs):
+        calls.append(args)
+        return FakeProcess(next(results))
+
+    monkeypatch.setattr("mycodeagent.agent_executor.subprocess.Popen", fake_popen)
     executor = OmnigentAgentExecutor(tmp_path, None, tmp_path)
 
     output = executor._run_agent(
@@ -91,11 +102,18 @@ def test_non_transient_agent_failure_is_not_retried(monkeypatch, tmp_path):
     definition.write_text("name: test\n", encoding="utf-8")
     calls = []
 
-    def fake_run(*args, **kwargs):
-        calls.append(args)
-        return SimpleNamespace(returncode=1, stdout="", stderr="invalid model")
+    class FakeProcess:
+        pid = 123
+        returncode = 1
 
-    monkeypatch.setattr("mycodeagent.agent_executor.subprocess.run", fake_run)
+        def communicate(self, timeout=None):
+            return "", "invalid model"
+
+    def fake_popen(*args, **kwargs):
+        calls.append(args)
+        return FakeProcess()
+
+    monkeypatch.setattr("mycodeagent.agent_executor.subprocess.Popen", fake_popen)
     executor = OmnigentAgentExecutor(tmp_path, None, tmp_path)
 
     with pytest.raises(AgentExecutionError, match="after 1 attempt"):
@@ -105,3 +123,38 @@ def test_non_transient_agent_failure_is_not_retried(monkeypatch, tmp_path):
         )
 
     assert len(calls) == 1
+
+
+def test_timeout_terminates_process_group_and_reports_total_budget(monkeypatch, tmp_path):
+    definition = tmp_path / "implementer.yaml"
+    definition.write_text("name: test\n", encoding="utf-8")
+    signals = []
+
+    class TimedOutProcess:
+        pid = 456
+        returncode = None
+        calls = 0
+
+        def communicate(self, timeout=None):
+            self.calls += 1
+            if self.calls == 1:
+                raise subprocess.TimeoutExpired("omnigent", timeout)
+            return "", ""
+
+    monkeypatch.setattr(
+        "mycodeagent.agent_executor.subprocess.Popen",
+        lambda *args, **kwargs: TimedOutProcess(),
+    )
+    monkeypatch.setattr(
+        "mycodeagent.agent_executor.os.killpg",
+        lambda pid, value: signals.append((pid, value)),
+    )
+    executor = OmnigentAgentExecutor(tmp_path, None, tmp_path)
+
+    with pytest.raises(AgentExecutionError, match="total retry budget"):
+        executor._run_agent(
+            definition, harness="codex", model="model", effort="high",
+            timeout=60, prompt="{}", cwd=tmp_path,
+        )
+
+    assert signals[0][0] == 456

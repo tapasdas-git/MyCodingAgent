@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from mycodeagent.config import WorkflowConfig
 from mycodeagent.errors import AgentExecutionError
 from mycodeagent.models import (
@@ -30,7 +32,9 @@ class FakeExecutor:
         assert choice in available
         return ActionDecision(choice, "test decision")
 
-    def invoke_role(self, role, memory, request):
+    def invoke_role(self, role, memory, request, progress=None):
+        if progress:
+            progress("agent.attempt.started", "running", {"attempt": 1})
         if role is AgentRole.IMPLEMENTER:
             for relative in memory.task.required_files:
                 path = self.root / relative
@@ -62,7 +66,7 @@ class MalformedSupervisorExecutor:
     def supervisor_decision(self, memory, available):
         raise AgentExecutionError("Supervisor returned an invalid action")
 
-    def invoke_role(self, role, memory, request):
+    def invoke_role(self, role, memory, request, progress=None):
         self.role_invoked = True
         raise AssertionError("No role should be invoked after supervisor failure")
 
@@ -83,6 +87,13 @@ def test_approved_flow_completes_locally_after_one_cycle(git_repo, task):
     assert memory.state is WorkflowState.COMPLETED
     assert memory.cycle == 1
     assert executor.reviews == 1
+    human_log = (git_repo / "logs" / f"{task.task_id}.log").read_text()
+    assert "Implementation started" in human_log
+    assert "Implementation completed" in human_log
+    assert "Scope validation passed" in human_log
+    assert "Tests passed" in human_log
+    assert "Review approved" in human_log
+    assert "Workflow completed successfully" in human_log
 
 
 def test_review_context_routes_back_to_implementer_then_rereviews(git_repo, task):
@@ -120,6 +131,13 @@ def test_exploration_is_available_only_until_context_exists(task):
     memory.repository_context = {"summary": "inspected"}
     assert SupervisorAction.EXPLORE not in SupervisorOrchestrator.available_actions(memory, deliver=False)
     assert SupervisorAction.IMPLEMENT in SupervisorOrchestrator.available_actions(memory, deliver=False)
+
+
+def test_implementer_cannot_complete_before_required_coding_artifacts_exist(git_repo, task):
+    memory = ExecutionMemory("run", task, worktree=str(git_repo))
+
+    with pytest.raises(AgentExecutionError, match="returned before creating required artifact"):
+        SupervisorOrchestrator._assert_role_artifacts(AgentRole.IMPLEMENTER, memory)
 
 
 def test_reviewer_context_contains_deterministic_change_evidence(git_repo, task):

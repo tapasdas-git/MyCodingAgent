@@ -306,7 +306,8 @@ current checkout and is not recommended for normal task execution.
 Each run writes correlated, redacted records to:
 
 ```text
-logs/<TASK-ID>.logs                         append-only trace across runs
+logs/<TASK-ID>.log                          user-readable progress across runs
+logs/<TASK-ID>.logs                         structured append-only trace across runs
 .mycodeagent/runs/<run-id>/events.jsonl     machine-readable run events
 .mycodeagent/runs/<run-id>/memory.json      centralized execution memory
 .mycodeagent/tasks/<TASK-ID>/latest.json    pointer to the latest run
@@ -378,6 +379,8 @@ read_only = true
 `time_limit_seconds = 1200` is the maximum duration of one Supervisor or
 sub-agent invocation; it does not make every invocation run for twenty minutes.
 Role-specific limits can be set with `timeout_seconds` inside a role section.
+Each limit is a total budget shared by the initial attempt and any transient-error
+retry; a retry does not reset the clock.
 The deterministic pytest runner has a separate 300-second upper bound. A
 recognized transient Omnigent transport failure is retried once.
 
@@ -531,3 +534,24 @@ role-level filesystem restrictions are currently prompt/config contracts, not
 a complete OS-level sandbox boundary. Run MyCodeAgent only in repositories and
 with credentials appropriate for the selected LLM harness, and review every
 generated pull request before merging.
+
+# Mark the task as approved doesn't create a PR
+mycodeagent submit TASK-116
+# Delive till PR creation
+mycodeagent submit TASK-117 --deliver
+
+Command	Effect
+mycodeagent show-task TASK-116	
+Parse and display the normalized task; no execution
+mycodeagent status TASK-116	
+Display the latest persisted run state
+mycodeagent verify TASK-116 --worktree PATH	Run scope/file validation only
+mycodeagent run TASK-116	
+Run the complete workflow for one task
+mycodeagent submit TASK-116	
+Same workflow, using the supplied task till approved
+mycodeagent submit	
+Select and run the first ready task
+mycodeagent run TASK-116 --deliver	
+Complete workflow plus commit, push, and PR creation
+mycodeagent run TASK-116 --no-worktree	Complete workflow in the current checkout
